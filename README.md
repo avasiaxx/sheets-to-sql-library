@@ -1,0 +1,190 @@
+# sheets-to-sql
+
+Reusable Kotlin/JVM library for reading Google Sheets, reviewing inferred schemas, and generating SQL-ready table definitions and data operations.
+
+The first implementation targets PostgreSQL SQL generation. The library is intentionally split into small layers:
+
+- Google Sheets reader
+- Header detection and normalization
+- Type inference
+- Schema review reports
+- SQL dialect adapters
+
+## Install
+
+This project is currently scaffolded as a local Gradle library:
+
+```kotlin
+dependencies {
+    implementation("com.example:sheets-to-sql:0.1.0-SNAPSHOT")
+}
+```
+
+Before publishing, replace `com.example` with your Maven group, for example `io.yourorg`.
+
+## Google Cloud Setup
+
+Create a Google Cloud project:
+
+```bash
+gcloud projects create sheets-to-sql-library --name="sheets-to-sql-library"
+gcloud config set project sheets-to-sql-library
+```
+
+Enable the Google Sheets API:
+
+```bash
+gcloud services enable sheets.googleapis.com
+```
+
+Enable Google Drive API only if you later add Sheet discovery by name or folder:
+
+```bash
+gcloud services enable drive.googleapis.com
+```
+
+Create a service account:
+
+```bash
+gcloud iam service-accounts create sheets-to-sql-reader \
+  --display-name="Sheets to SQL Reader"
+```
+
+Create a JSON key:
+
+```bash
+mkdir -p secrets
+gcloud iam service-accounts keys create ./secrets/sheets-to-sql-reader.json \
+  --iam-account=sheets-to-sql-reader@sheets-to-sql-library.iam.gserviceaccount.com
+```
+
+Share target spreadsheets with the service account email. Use Viewer access unless you add write-back features.
+
+## Credentials
+
+Prefer Application Default Credentials:
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=./secrets/sheets-to-sql-reader.json
+```
+
+Or pass a credentials path explicitly:
+
+```kotlin
+GoogleSheetsConfig.fromCredentialsFile(Path.of("./secrets/sheets-to-sql-reader.json"))
+```
+
+Never commit service account keys. Rotate keys periodically, delete old keys after rotation, and share only the specific Sheets needed by the service account.
+
+## Access Policy
+
+If an outside user can influence `spreadsheetId`, `sheetName`, or `range`, configure an access policy before reading from Google. Otherwise, a backend service account can become a confused deputy that reads any Sheet shared with it.
+
+```kotlin
+import com.example.sheetstosql.google.SheetsAccessPolicy
+
+val sheetsToSql = SheetsToSql.create(
+    SheetsToSqlConfig(
+        google = GoogleSheetsConfig(
+            accessPolicy = SheetsAccessPolicy(
+                allowedSpreadsheetIds = setOf("approved-spreadsheet-id"),
+                allowedSheetNames = setOf("Customers"),
+                allowedRangePatterns = listOf(Regex("'Customers'![A-Z]+\\d+:[A-Z]+\\d+"))
+            )
+        ),
+        dialect = PostgresDialect
+    )
+)
+```
+
+For user-facing applications, authorize the user in your application first, then map them to server-side approved Sheet IDs. Do not treat possession of a spreadsheet ID as permission to read it.
+
+`allowedSheetNames` controls full-tab reads through `readSheet`. `allowedRangePatterns` controls raw A1 reads through `readRange`.
+
+## Usage
+
+```kotlin
+import com.example.sheetstosql.SheetsToSql
+import com.example.sheetstosql.config.SheetsToSqlConfig
+import com.example.sheetstosql.google.GoogleSheetsConfig
+import com.example.sheetstosql.sql.PostgresDialect
+
+val sheetsToSql = SheetsToSql.create(
+    SheetsToSqlConfig(
+        google = GoogleSheetsConfig.fromApplicationDefaultCredentials(),
+        dialect = PostgresDialect
+    )
+)
+
+val sheet = sheetsToSql.readSheet(
+    spreadsheetId = "your-spreadsheet-id",
+    sheetName = "Customers"
+)
+
+val review = sheetsToSql.reviewSchema(
+    sheet = sheet,
+    tableName = "customers"
+)
+
+review.warnings.forEach(::println)
+
+val createTable = sheetsToSql.generateCreateTable(review.schema)
+println(createTable.sql)
+
+val insert = sheetsToSql.generateInsert(
+    schema = review.schema,
+    rows = sheet.rows
+)
+println(insert.sql)
+println(insert.parameters)
+```
+
+`generateInsert` accepts rows keyed by either normalized SQL column names or the original Sheet headers, so the raw `sheet.rows` value can be passed directly.
+
+## Header Normalization
+
+Examples:
+
+| Sheet Header | SQL Column |
+| --- | --- |
+| `Customer ID` | `customer_id` |
+| `Customer ID` duplicate | `customer_id_2` |
+| empty header | `column_1` |
+| `123 Amount` | `column_123_amount` |
+| `Created At!` | `created_at` |
+
+## Inferred Types
+
+The core inference supports:
+
+- `TEXT`
+- `INTEGER`
+- `DECIMAL`
+- `BOOLEAN`
+- `DATE`
+- `TIMESTAMP`
+
+Mixed columns fall back to text. Blank values are treated as null by default.
+
+## SQL Dialects
+
+`SqlDialect` is the extension point for database-specific generation.
+
+Implemented:
+
+- PostgreSQL
+
+Planned:
+
+- MySQL
+- SQLite
+- SQL Server
+
+## Future Work
+
+- Schema override files
+- Column mapping
+- Validation rules
+- Incremental sync
+- Google Drive discovery
+- Status sheet write-back

@@ -1,0 +1,11 @@
+.gradle/
+build/
+out/
+.idea/
+*.iml
+
+.env
+secrets/
+*.service-account.json
+google-credentials.json
+

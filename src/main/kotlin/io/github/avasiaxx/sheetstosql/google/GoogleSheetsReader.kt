@@ -3,6 +3,7 @@ package io.github.avasiaxx.sheetstosql.google
 import io.github.avasiaxx.sheetstosql.errors.SheetReadException
 import io.github.avasiaxx.sheetstosql.model.SheetData
 import io.github.avasiaxx.sheetstosql.schema.BlankValuePolicy
+import io.github.avasiaxx.sheetstosql.schema.HeaderKeys
 import io.github.avasiaxx.sheetstosql.schema.HeaderRowDetector
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
@@ -64,7 +65,7 @@ class GoogleSheetsReader(
         }
         val dataRows = rows.drop(headerRowIndex + 1).map { row ->
             headers.mapIndexed { index, header ->
-                stableHeaderKey(headers, header, index) to row.getOrNull(index)
+                HeaderKeys.stable(headers, header, index) to row.getOrNull(index)
             }.toMap()
         }
 
@@ -90,8 +91,4 @@ class GoogleSheetsReader(
         }
     }
 
-    private fun stableHeaderKey(headers: List<String>, header: String, index: Int): String {
-        val priorMatches = headers.take(index).count { it == header }
-        return if (priorMatches == 0) header else "$header#${priorMatches + 1}"
-    }
 }

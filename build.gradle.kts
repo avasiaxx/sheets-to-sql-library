@@ -22,6 +22,8 @@ dependencies {
     implementation("com.google.auth:google-auth-library-oauth2-http:1.30.1")
     implementation("com.google.api-client:google-api-client:2.8.0")
     implementation("com.google.http-client:google-http-client-gson:1.45.3")
+    implementation("org.apache.poi:poi-ooxml:5.5.0")
+    implementation("org.xerial:sqlite-jdbc:3.51.3.0")
 
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")

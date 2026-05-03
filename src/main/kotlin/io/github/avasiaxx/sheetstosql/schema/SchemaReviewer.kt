@@ -16,7 +16,7 @@ object SchemaReviewer {
 
         val columns = sheet.headers.mapIndexed { index, originalHeader ->
             val normalizedName = normalized.headers[index]
-            val stableOriginalHeader = stableHeaderKey(sheet.headers, originalHeader, index)
+            val stableOriginalHeader = HeaderKeys.stable(sheet.headers, originalHeader, index)
             val values = sheet.rows.map { row -> row[stableOriginalHeader] ?: row[originalHeader] }
             val type = TypeInferrer.infer(values, blankValuePolicy)
             val nullable = values.any { blankValuePolicy.normalize(it) == null }
@@ -41,10 +41,5 @@ object SchemaReviewer {
             warnings = warnings,
             errors = errors
         )
-    }
-
-    private fun stableHeaderKey(headers: List<String>, header: String, index: Int): String {
-        val priorMatches = headers.take(index).count { it == header }
-        return if (priorMatches == 0) header else "$header#${priorMatches + 1}"
     }
 }

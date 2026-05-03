@@ -21,4 +21,14 @@ class HeaderNormalizerTest {
         assertTrue(result.warnings.any { it.contains("Empty header") })
         assertTrue(result.warnings.any { it.contains("Duplicate header") })
     }
+
+    @Test
+    fun `dedupes headers from reserved identifiers`() {
+        val result = HeaderNormalizer.normalize(
+            headers = listOf("Source Sheet", "Name"),
+            reservedIdentifiers = setOf("source_sheet")
+        )
+
+        assertEquals(listOf("source_sheet_2", "name"), result.headers)
+    }
 }

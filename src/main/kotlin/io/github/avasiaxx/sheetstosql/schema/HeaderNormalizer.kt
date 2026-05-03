@@ -6,8 +6,12 @@ data class NormalizedHeaders(
 )
 
 object HeaderNormalizer {
-    fun normalize(headers: List<String>): NormalizedHeaders {
-        val seen = mutableMapOf<String, Int>()
+    fun normalize(
+        headers: List<String>,
+        reservedIdentifiers: Set<String> = emptySet()
+    ): NormalizedHeaders {
+        val baseCounts = mutableMapOf<String, Int>()
+        val used = reservedIdentifiers.toMutableSet()
         val warnings = mutableListOf<String>()
 
         val normalized = headers.mapIndexed { index, header ->
@@ -18,15 +22,22 @@ object HeaderNormalizer {
                 warnings += "Header '$header' normalized to '$base'"
             }
 
-            val count = seen.getOrDefault(base, 0) + 1
-            seen[base] = count
-            if (count == 1) {
-                base
-            } else {
-                val deduped = "${base}_$count"
-                warnings += "Duplicate header '$header' renamed to '$deduped'"
-                deduped
+            val count = baseCounts.getOrDefault(base, 0) + 1
+            baseCounts[base] = count
+            var candidate = if (count == 1) base else "${base}_$count"
+            var suffix = count + 1
+            while (candidate in used) {
+                candidate = "${base}_${suffix++}"
             }
+            used += candidate
+            if (candidate != base) {
+                warnings += if (count > 1) {
+                    "Duplicate header '$header' renamed to '$candidate'"
+                } else {
+                    "Reserved header '$header' renamed to '$candidate'"
+                }
+            }
+            candidate
         }
 
         return NormalizedHeaders(normalized, warnings)

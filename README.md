@@ -248,6 +248,45 @@ Implemented:
 
 - PostgreSQL
 
+## Chronicle Atlas Excel Import
+
+SheetsToSQL can also act as a repeatable Chronicle Atlas import foundation while a campaign workbook remains the temporary source of truth. The first supported import targets are `Characters` and `NPCs` from an Excel workbook.
+
+The Chronicle Atlas importer expects the current planner layout:
+
+- Row 1 is a sheet title and is ignored.
+- Row 2 contains headers.
+- Data starts on row 3.
+- Blank formatted rows are ignored, including workbooks formatted down to row 200.
+- Cell values are stored as raw text first, without aggressive type normalization.
+
+```kotlin
+import io.github.avasiaxx.sheetstosql.chronicleatlas.ChronicleAtlasImporter
+import java.nio.file.Path
+
+val report = ChronicleAtlasImporter().importWorkbook(
+    workbookPath = Path.of("campaign-planner.xlsx"),
+    databasePath = Path.of("chronicle-atlas.db")
+)
+
+println("created=${report.createdRows}")
+println("updated=${report.updatedRows}")
+println("skipped=${report.skippedRows}")
+println("warningRows=${report.warningRows}")
+```
+
+The importer creates or updates local SQLite tables named `chronicle_atlas_characters` and `chronicle_atlas_npcs`. Each row includes source metadata:
+
+| Column | Purpose |
+| --- | --- |
+| `_source_sheet` | Workbook sheet used for the import target. |
+| `_source_row_number` | 1-based Excel row number from the source workbook. |
+| `_source_row_hash` | SHA-256 hash of the source row contents. |
+| `_source_entity_key` | Stable repeat-import key, using `Name` by default and row hash when no name is present. |
+| `_imported_at` | Import timestamp for created or updated rows. |
+
+Repeated imports use `_source_entity_key` to avoid duplicates. Rows with the same hash and source row number are skipped, changed rows are updated, and new rows are inserted. The import report exposes created, updated, skipped, and warning row counts without printing raw cell values.
+
 Planned:
 
 - MySQL

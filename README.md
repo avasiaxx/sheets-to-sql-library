@@ -43,6 +43,27 @@ dependencies {
 }
 ```
 
+## Using A Google Sheets Link
+
+Do not pass the full Google Sheets URL into the library. Extract the spreadsheet ID from the URL and pass that ID to `readSheet`, `readRange`, and `SheetsAccessPolicy`.
+
+Given this link:
+
+```text
+https://docs.google.com/spreadsheets/d/1AbCDefGhIjKlMnOpQrStUvWxYz1234567890/edit#gid=0
+```
+
+Use only this part:
+
+```text
+1AbCDefGhIjKlMnOpQrStUvWxYz1234567890
+```
+
+That value goes in two places:
+
+- `SheetsAccessPolicy.allowOnly(spreadsheetIds = setOf(spreadsheetId), ...)`
+- `sheetsToSql.readSheet(spreadsheetId = spreadsheetId, sheetName = sheetName)`
+
 ## Google Cloud Setup
 
 Create a Google Cloud project:
@@ -173,6 +194,26 @@ println(insert.parameters)
 ```
 
 `generateInsert` accepts rows keyed by either normalized SQL column names or the original Sheet headers, so the raw `sheet.rows` value can be passed directly.
+
+## Agent Implementation Prompt
+
+Use this prompt in another Kotlin/Gradle project when asking an agent to integrate the library:
+
+```text
+Integrate the local Maven dependency `io.github.avasiaxx:sheets-to-sql:0.1.0-SNAPSHOT`.
+
+Add `mavenLocal()` and `mavenCentral()` to Gradle repositories, then add the dependency.
+
+Use Application Default Credentials through `GOOGLE_APPLICATION_CREDENTIALS`.
+
+The Google Sheets input may be provided as a full URL. Extract the spreadsheet ID from the `/d/{spreadsheetId}/` segment before calling the library.
+
+Configure `SheetsAccessPolicy.allowOnly(...)` with the approved spreadsheet ID and exact tab names before reading any Sheet data. Do not use `allowAllForTrustedLocalUseOnly()` in user-facing code.
+
+Read the target tab with `SheetsToSql.readSheet(spreadsheetId, sheetName)`, call `reviewSchema`, inspect warnings/errors, then generate PostgreSQL `CREATE TABLE` and parameterized `INSERT` SQL.
+
+Do not log credentials, spreadsheet contents, SQL parameters, spreadsheet IDs, ranges, or raw Google API responses.
+```
 
 ## Header Normalization
 

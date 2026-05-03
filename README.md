@@ -195,9 +195,9 @@ println(insert.parameters)
 
 `generateInsert` accepts rows keyed by either normalized SQL column names or the original Sheet headers, so the raw `sheet.rows` value can be passed directly.
 
-## Agent Implementation Prompt
+## Google Sheets SQL Generation Prompt
 
-Use this prompt in another Kotlin/Gradle project when asking an agent to integrate the library:
+Use this prompt in another Kotlin/Gradle project when asking an agent to integrate the Google Sheets to generated SQL path:
 
 ```text
 Integrate the local Maven dependency `io.github.avasiaxx:sheets-to-sql:0.1.0-SNAPSHOT`.
@@ -213,6 +213,28 @@ Configure `SheetsAccessPolicy.allowOnly(...)` with the approved spreadsheet ID a
 Read the target tab with `SheetsToSql.readSheet(spreadsheetId, sheetName)`, call `reviewSchema`, inspect warnings/errors, then generate PostgreSQL `CREATE TABLE` and parameterized `INSERT` SQL.
 
 Do not log credentials, spreadsheet contents, SQL parameters, spreadsheet IDs, ranges, or raw Google API responses.
+```
+
+## Chronicle Atlas Implementation Prompt
+
+Use this prompt when integrating the repeatable Chronicle Atlas import path:
+
+```text
+Integrate the local Maven dependency `io.github.avasiaxx:sheets-to-sql:0.1.0-SNAPSHOT`.
+
+Add `mavenLocal()` and `mavenCentral()` to Gradle repositories, then add the dependency.
+
+Use Application Default Credentials through `GOOGLE_APPLICATION_CREDENTIALS`.
+
+The Chronicle Atlas source is the existing Google Sheet that the DM keeps updating. Do not introduce a local Excel workbook as the source of truth.
+
+Extract the spreadsheet ID from the `/d/{spreadsheetId}/` segment if the input is a full Google Sheets URL.
+
+Configure `SheetsAccessPolicy.allowOnly(...)` with the approved spreadsheet ID and exact tab names `Characters` and `NPCs` before reading any Sheet data. Do not use `allowAllForTrustedLocalUseOnly()` in user-facing code.
+
+Create `SheetsToSql`, then call `ChronicleAtlasImporter(sheetsToSql).importSpreadsheet(spreadsheetId, databasePath)` to import into local SQLite.
+
+Use the returned report counts for created, updated, skipped, and warning rows. Do not log credentials, spreadsheet contents, SQL parameters, spreadsheet IDs, ranges, or raw Google API responses.
 ```
 
 ## Header Normalization
@@ -247,25 +269,42 @@ Mixed columns fall back to text. Blank values are treated as null by default.
 Implemented:
 
 - PostgreSQL
+- SQLite
 
-## Chronicle Atlas Excel Import
+## Chronicle Atlas Google Sheet Import
 
-SheetsToSQL can also act as a repeatable Chronicle Atlas import foundation while a campaign workbook remains the temporary source of truth. The first supported import targets are `Characters` and `NPCs` from an Excel workbook.
+SheetsToSQL can also act as a repeatable Chronicle Atlas import foundation while the campaign planner Google Sheet remains the temporary source of truth. The first supported import targets are `Characters` and `NPCs`.
 
 The Chronicle Atlas importer expects the current planner layout:
 
 - Row 1 is a sheet title and is ignored.
 - Row 2 contains headers.
 - Data starts on row 3.
-- Blank formatted rows are ignored, including workbooks formatted down to row 200.
+- Blank formatted rows are ignored, including sheets formatted down to row 200.
 - Cell values are stored as raw text first, without aggressive type normalization.
 
 ```kotlin
+import io.github.avasiaxx.sheetstosql.SheetsToSql
 import io.github.avasiaxx.sheetstosql.chronicleatlas.ChronicleAtlasImporter
+import io.github.avasiaxx.sheetstosql.config.SheetsToSqlConfig
+import io.github.avasiaxx.sheetstosql.google.GoogleSheetsConfig
+import io.github.avasiaxx.sheetstosql.google.SheetsAccessPolicy
 import java.nio.file.Path
 
-val report = ChronicleAtlasImporter().importWorkbook(
-    workbookPath = Path.of("campaign-planner.xlsx"),
+val spreadsheetId = "approved-spreadsheet-id"
+val sheetsToSql = SheetsToSql.create(
+    SheetsToSqlConfig(
+        google = GoogleSheetsConfig.fromApplicationDefaultCredentials(
+            accessPolicy = SheetsAccessPolicy.allowOnly(
+                spreadsheetIds = setOf(spreadsheetId),
+                sheetNames = setOf("Characters", "NPCs")
+            )
+        )
+    )
+)
+
+val report = ChronicleAtlasImporter(sheetsToSql).importSpreadsheet(
+    spreadsheetId = spreadsheetId,
     databasePath = Path.of("chronicle-atlas.db")
 )
 
@@ -275,12 +314,12 @@ println("skipped=${report.skippedRows}")
 println("warningRows=${report.warningRows}")
 ```
 
-The importer creates or updates local SQLite tables named `chronicle_atlas_characters` and `chronicle_atlas_npcs`. Each row includes source metadata:
+The importer reads the approved Google Sheet through the existing Google Sheets access policy, then creates or updates local SQLite tables named `chronicle_atlas_characters` and `chronicle_atlas_npcs`. Each row includes source metadata:
 
 | Column | Purpose |
 | --- | --- |
-| `_source_sheet` | Workbook sheet used for the import target. |
-| `_source_row_number` | 1-based Excel row number from the source workbook. |
+| `_source_sheet` | Google Sheet tab used for the import target. |
+| `_source_row_number` | 1-based row number from the source Google Sheet tab. |
 | `_source_row_hash` | SHA-256 hash of the source row contents. |
 | `_source_entity_key` | Stable repeat-import key, using `Name` by default and row hash when no name is present. |
 | `_imported_at` | Import timestamp for created or updated rows. |

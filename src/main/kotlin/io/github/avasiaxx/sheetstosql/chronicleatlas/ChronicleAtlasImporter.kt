@@ -1,5 +1,7 @@
 package io.github.avasiaxx.sheetstosql.chronicleatlas
 
+import io.github.avasiaxx.sheetstosql.SheetsToSql
+import io.github.avasiaxx.sheetstosql.model.SheetData
 import io.github.avasiaxx.sheetstosql.schema.HeaderKeys
 import io.github.avasiaxx.sheetstosql.schema.HeaderNormalizer
 import io.github.avasiaxx.sheetstosql.sql.SqliteDialect
@@ -12,20 +14,26 @@ import java.sql.PreparedStatement
 import java.time.Instant
 
 class ChronicleAtlasImporter(
+    private val readSheet: (spreadsheetId: String, sheetName: String) -> SheetData,
     private val config: ChronicleAtlasImportConfig = ChronicleAtlasImportConfig()
 ) {
-    fun importWorkbook(workbookPath: Path, databasePath: Path): ChronicleAtlasImportReport {
+    constructor(
+        sheetsToSql: SheetsToSql,
+        config: ChronicleAtlasImportConfig = ChronicleAtlasImportConfig()
+    ) : this(sheetsToSql::readSheet, config)
+
+    fun importSpreadsheet(spreadsheetId: String, databasePath: Path): ChronicleAtlasImportReport {
         DriverManager.getConnection("jdbc:sqlite:${databasePath.toAbsolutePath()}").use { connection ->
-            return importWorkbook(workbookPath, connection, databasePath)
+            return importSpreadsheet(spreadsheetId, connection, databasePath)
         }
     }
 
-    fun importWorkbook(
-        workbookPath: Path,
+    fun importSpreadsheet(
+        spreadsheetId: String,
         connection: Connection,
         databasePath: Path? = null
     ): ChronicleAtlasImportReport {
-        val sheets = ChronicleAtlasExcelWorkbookReader.read(workbookPath, config)
+        val sheets = readSheets(spreadsheetId)
         val originalAutoCommit = connection.autoCommit
         connection.autoCommit = false
 
@@ -33,7 +41,7 @@ class ChronicleAtlasImporter(
             val reports = sheets.map { sheet -> importSheet(connection, sheet) }
             connection.commit()
             ChronicleAtlasImportReport(
-                workbookPath = workbookPath,
+                spreadsheetId = spreadsheetId,
                 databasePath = databasePath,
                 tables = reports
             )
@@ -45,7 +53,61 @@ class ChronicleAtlasImporter(
         }
     }
 
-    private fun importSheet(connection: Connection, sheet: ChronicleAtlasWorkbookSheet): ChronicleAtlasTableImportReport {
+    private fun readSheets(spreadsheetId: String): List<ChronicleAtlasSourceSheet> {
+        return config.targets.map { target ->
+            try {
+                readSheet(spreadsheetId, target.sheetName).toChronicleAtlasSheet(target)
+            } catch (exception: Exception) {
+                ChronicleAtlasSourceSheet(
+                    target = target,
+                    headers = emptyList(),
+                    rows = emptyList(),
+                    warnings = listOf(
+                        ChronicleAtlasImportWarning(
+                            sheetName = target.sheetName,
+                            tableName = target.tableName,
+                            rowNumber = null,
+                            message = "Configured sheet could not be read"
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    private fun SheetData.toChronicleAtlasSheet(target: ChronicleAtlasSheetTarget): ChronicleAtlasSourceSheet {
+        val expectedHeaderIndex = config.headerRowNumber - 1
+        val warnings = mutableListOf<ChronicleAtlasImportWarning>()
+        if (headerRowIndex != expectedHeaderIndex) {
+            warnings += ChronicleAtlasImportWarning(
+                sheetName = target.sheetName,
+                tableName = target.tableName,
+                rowNumber = config.headerRowNumber,
+                message = "Detected header row did not match configured Chronicle Atlas layout"
+            )
+        }
+
+        val rows = rows.mapIndexedNotNull { index, row ->
+            val rowNumber = headerRowIndex + 2 + index
+            if (rowNumber < config.dataStartRowNumber || row.values.all { it.isNullOrBlank() }) {
+                null
+            } else {
+                ChronicleAtlasSourceRow(
+                    rowNumber = rowNumber,
+                    valuesByHeader = row.mapValues { (_, value) -> value?.trim()?.takeIf(String::isNotBlank) }
+                )
+            }
+        }
+
+        return ChronicleAtlasSourceSheet(
+            target = target,
+            headers = headers,
+            rows = rows,
+            warnings = warnings
+        )
+    }
+
+    private fun importSheet(connection: Connection, sheet: ChronicleAtlasSourceSheet): ChronicleAtlasTableImportReport {
         val warnings = sheet.warnings.toMutableList()
         if (sheet.headers.isEmpty()) {
             return ChronicleAtlasTableImportReport(
@@ -143,7 +205,7 @@ class ChronicleAtlasImporter(
         connection: Connection,
         target: ChronicleAtlasSheetTarget,
         columns: ChronicleAtlasTableColumns,
-        row: ChronicleAtlasWorkbookRow,
+        row: ChronicleAtlasSourceRow,
         rowHash: String,
         entityKey: String
     ): RowImportAction {
@@ -170,7 +232,7 @@ class ChronicleAtlasImporter(
         connection: Connection,
         target: ChronicleAtlasSheetTarget,
         columns: ChronicleAtlasTableColumns,
-        row: ChronicleAtlasWorkbookRow,
+        row: ChronicleAtlasSourceRow,
         rowHash: String,
         entityKey: String,
         importedAt: String,
@@ -193,7 +255,7 @@ class ChronicleAtlasImporter(
         connection: Connection,
         target: ChronicleAtlasSheetTarget,
         columns: ChronicleAtlasTableColumns,
-        row: ChronicleAtlasWorkbookRow,
+        row: ChronicleAtlasSourceRow,
         rowHash: String,
         entityKey: String,
         importedAt: String,
@@ -216,7 +278,7 @@ class ChronicleAtlasImporter(
     private fun bindRow(
         statement: PreparedStatement,
         target: ChronicleAtlasSheetTarget,
-        row: ChronicleAtlasWorkbookRow,
+        row: ChronicleAtlasSourceRow,
         rowHash: String,
         entityKey: String,
         importedAt: String,

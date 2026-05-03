@@ -33,7 +33,7 @@ data class ChronicleAtlasSheetTarget(
 }
 
 data class ChronicleAtlasImportReport(
-    val workbookPath: Path,
+    val spreadsheetId: String,
     val databasePath: Path?,
     val tables: List<ChronicleAtlasTableImportReport>
 ) {
@@ -61,14 +61,14 @@ data class ChronicleAtlasImportWarning(
     val message: String
 )
 
-internal data class ChronicleAtlasWorkbookSheet(
+internal data class ChronicleAtlasSourceSheet(
     val target: ChronicleAtlasSheetTarget,
     val headers: List<String>,
-    val rows: List<ChronicleAtlasWorkbookRow>,
+    val rows: List<ChronicleAtlasSourceRow>,
     val warnings: List<ChronicleAtlasImportWarning>
 )
 
-internal data class ChronicleAtlasWorkbookRow(
+internal data class ChronicleAtlasSourceRow(
     val rowNumber: Int,
     val valuesByHeader: Map<String, String?>
 )

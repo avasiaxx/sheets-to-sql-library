@@ -6,6 +6,11 @@ This repository builds a library that can read Google Sheets using service accou
 
 Security is the highest priority. If a requested change improves convenience but weakens credential handling, access control, data minimization, SQL safety, or auditability, do not implement it without an explicit documented security review.
 
+
+## Project Memory Rules
+
+Project memories must follow `MEMORY_RULES.md`. Read it after this file and before `README.md` when starting work in this repository.
+
 ## Required Practices
 
 - Never commit service account JSON keys, access tokens, `.env` files, exported Sheet data, generated SQL data dumps, or local credential paths.

@@ -22,6 +22,27 @@ dependencies {
 
 Before publishing, replace `com.example` with your Maven group, for example `io.yourorg`.
 
+## Use From Maven Local
+
+Install the current snapshot into Maven Local:
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+Then import it from another Gradle project:
+
+```kotlin
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation("com.example:sheets-to-sql:0.1.0-SNAPSHOT")
+}
+```
+
 ## Google Cloud Setup
 
 Create a Google Cloud project:

@@ -25,6 +25,18 @@ Project memories must follow `MEMORY_RULES.md`. Read it after this file and befo
 - Default to least privilege: specific Sheet sharing with Viewer permission, no broad Drive access, and no domain-wide delegation.
 - Add tests for security-relevant behavior whenever changing auth, access policy, SQL generation, logging, exceptions, or file handling.
 
+## Chronicle Atlas Import Rules
+
+- Chronicle Atlas imports must treat the existing Google Sheet as the temporary source of truth while the Chronicle Atlas UI is incomplete.
+- Do not reintroduce local Excel workbook import, Apache POI, `.xlsx` parsing, or file-picker workflows for the Chronicle Atlas import path unless the user explicitly changes the source-of-truth decision.
+- Chronicle Atlas code should import through `ChronicleAtlasImporter(sheetsToSql).importSpreadsheet(spreadsheetId, databasePath)`, not through local workbook paths.
+- Always configure `SheetsAccessPolicy.allowOnly(...)` with the approved spreadsheet ID and exact tabs before reading Chronicle Atlas source data.
+- The current Chronicle Atlas tabs are `Characters` and `NPCs`; row 1 is a sheet title, row 2 is headers, and data starts on row 3.
+- Preserve repeat-import behavior: avoid duplicate records, update changed source rows, skip unchanged rows, and retain `_source_sheet`, `_source_row_number`, `_source_row_hash`, `_source_entity_key`, and `_imported_at`.
+- Keep sparse or messy Chronicle Atlas values as raw text until a later normalization decision is explicitly made.
+- Import reports may include counts and non-sensitive warning locations, but must not print spreadsheet cell values, SQL parameters, spreadsheet IDs, ranges, raw Google API responses, or credential details.
+- Add or update tests whenever changing Chronicle Atlas import source handling, row hashing, entity keys, metadata columns, duplicate avoidance, warning reports, or SQLite writes.
+
 ## Outside User Data Access Risks
 
 The most important liability is confused-deputy access: a backend service using this library may have a service account that can read many Sheets. If an outside user can choose a `spreadsheetId`, `sheetName`, or `range`, they may cause the backend to read data they should not access.
@@ -44,6 +56,7 @@ Before finalizing any change, verify:
 - Credentials remain out of source control and logs.
 - Google scopes are still least-privilege.
 - All Google read paths enforce access policy.
+- Chronicle Atlas imports still read from the approved Google Sheet, not from local workbook files.
 - Generated SQL remains parameterized for values.
 - Exceptions do not disclose data or secrets.
 - Tests cover the changed behavior.

@@ -48,8 +48,10 @@ Before finalizing any change, verify:
 
 Before publishing this library:
 
-- Replace `com.example` with the real package namespace.
+- Confirm the Maven group and Kotlin package namespace match the intended publishing identity.
+- Confirm `gradle-wrapper.properties` includes `distributionSha256Sum` and the wrapper JAR checksum matches Gradle's published checksum.
 - Run `./gradlew test`.
 - Review dependencies for known vulnerabilities.
 - Confirm `.gitignore` excludes credential and data-export artifacts.
 - Confirm examples use placeholders and environment variables only.
+- Keep CI and dependency-update automation enabled before accepting outside contributions.

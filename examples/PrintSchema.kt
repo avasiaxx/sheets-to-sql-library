@@ -1,7 +1,8 @@
-import com.example.sheetstosql.SheetsToSql
-import com.example.sheetstosql.config.SheetsToSqlConfig
-import com.example.sheetstosql.google.GoogleSheetsConfig
-import com.example.sheetstosql.sql.PostgresDialect
+import io.github.avasiaxx.sheetstosql.SheetsToSql
+import io.github.avasiaxx.sheetstosql.config.SheetsToSqlConfig
+import io.github.avasiaxx.sheetstosql.google.GoogleSheetsConfig
+import io.github.avasiaxx.sheetstosql.google.SheetsAccessPolicy
+import io.github.avasiaxx.sheetstosql.sql.PostgresDialect
 
 fun main() {
     val spreadsheetId = requireNotNull(System.getenv("SPREADSHEET_ID")) {
@@ -11,7 +12,12 @@ fun main() {
 
     val sheetsToSql = SheetsToSql.create(
         SheetsToSqlConfig(
-            google = GoogleSheetsConfig.fromApplicationDefaultCredentials(),
+            google = GoogleSheetsConfig.fromApplicationDefaultCredentials(
+                accessPolicy = SheetsAccessPolicy.allowOnly(
+                    spreadsheetIds = setOf(spreadsheetId),
+                    sheetNames = setOf(sheetName)
+                )
+            ),
             dialect = PostgresDialect
         )
     )

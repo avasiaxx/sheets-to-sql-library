@@ -16,11 +16,11 @@ This project is currently scaffolded as a local Gradle library:
 
 ```kotlin
 dependencies {
-    implementation("com.example:sheets-to-sql:0.1.0-SNAPSHOT")
+    implementation("io.github.avasiaxx:sheets-to-sql:0.1.0-SNAPSHOT")
 }
 ```
 
-Before publishing, replace `com.example` with your Maven group, for example `io.yourorg`.
+The Kotlin package namespace is `io.github.avasiaxx.sheetstosql`.
 
 ## Use From Maven Local
 
@@ -39,7 +39,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.example:sheets-to-sql:0.1.0-SNAPSHOT")
+    implementation("io.github.avasiaxx:sheets-to-sql:0.1.0-SNAPSHOT")
 }
 ```
 
@@ -102,15 +102,15 @@ Never commit service account keys. Rotate keys periodically, delete old keys aft
 If an outside user can influence `spreadsheetId`, `sheetName`, or `range`, configure an access policy before reading from Google. Otherwise, a backend service account can become a confused deputy that reads any Sheet shared with it.
 
 ```kotlin
-import com.example.sheetstosql.google.SheetsAccessPolicy
+import io.github.avasiaxx.sheetstosql.google.SheetsAccessPolicy
 
 val sheetsToSql = SheetsToSql.create(
     SheetsToSqlConfig(
-        google = GoogleSheetsConfig(
-            accessPolicy = SheetsAccessPolicy(
-                allowedSpreadsheetIds = setOf("approved-spreadsheet-id"),
-                allowedSheetNames = setOf("Customers"),
-                allowedRangePatterns = listOf(Regex("'Customers'![A-Z]+\\d+:[A-Z]+\\d+"))
+        google = GoogleSheetsConfig.fromApplicationDefaultCredentials(
+            accessPolicy = SheetsAccessPolicy.allowOnly(
+                spreadsheetIds = setOf("approved-spreadsheet-id"),
+                sheetNames = setOf("Customers"),
+                rangePatterns = listOf(Regex("'Customers'![A-Z]+\\d+:[A-Z]+\\d+"))
             )
         ),
         dialect = PostgresDialect
@@ -122,17 +122,29 @@ For user-facing applications, authorize the user in your application first, then
 
 `allowedSheetNames` controls full-tab reads through `readSheet`. `allowedRangePatterns` controls raw A1 reads through `readRange`.
 
+The default access policy is deny-all. For a trusted local one-off script, you can explicitly opt out:
+
+```kotlin
+SheetsAccessPolicy.allowAllForTrustedLocalUseOnly()
+```
+
 ## Usage
 
 ```kotlin
-import com.example.sheetstosql.SheetsToSql
-import com.example.sheetstosql.config.SheetsToSqlConfig
-import com.example.sheetstosql.google.GoogleSheetsConfig
-import com.example.sheetstosql.sql.PostgresDialect
+import io.github.avasiaxx.sheetstosql.SheetsToSql
+import io.github.avasiaxx.sheetstosql.config.SheetsToSqlConfig
+import io.github.avasiaxx.sheetstosql.google.GoogleSheetsConfig
+import io.github.avasiaxx.sheetstosql.google.SheetsAccessPolicy
+import io.github.avasiaxx.sheetstosql.sql.PostgresDialect
 
 val sheetsToSql = SheetsToSql.create(
     SheetsToSqlConfig(
-        google = GoogleSheetsConfig.fromApplicationDefaultCredentials(),
+        google = GoogleSheetsConfig.fromApplicationDefaultCredentials(
+            accessPolicy = SheetsAccessPolicy.allowOnly(
+                spreadsheetIds = setOf("your-spreadsheet-id"),
+                sheetNames = setOf("Customers")
+            )
+        ),
         dialect = PostgresDialect
     )
 )

@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group = "com.example"
+group = "io.github.avasiaxx"
 version = "0.1.0-SNAPSHOT"
 
 java {

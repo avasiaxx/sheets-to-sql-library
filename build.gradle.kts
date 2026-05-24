@@ -25,7 +25,7 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.51.3.0")
 
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
 }
 
 tasks.test {
